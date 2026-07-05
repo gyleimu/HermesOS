@@ -1,7 +1,11 @@
 import dotenv from 'dotenv';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-dotenv.config({ path: '.env' });
-dotenv.config({ path: 'HermesOS配置记录.env' });
+const workerDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+dotenv.config({ path: resolve(workerDir, '.env') });
+dotenv.config({ path: resolve(workerDir, 'HermesOS配置记录.env') });
 
 function normalizeBaseUrl(value) {
   return value
