@@ -18,6 +18,7 @@ function normalizeBaseUrl(value) {
 }
 
 export const config = {
+  workerDir,
   projectKey: process.env.PROJECT_KEY || 'HermesOS',
   workerKey: process.env.WORKER_KEY || 'HermesOS-Windows-Local',
   projectDir: process.env.PROJECT_DIR,

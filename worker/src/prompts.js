@@ -1,21 +1,34 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { config } from './config.js';
 
-export function projectInstructionsBlock() {
-  if (!config.projectInstructionsPath) return '';
-  if (!existsSync(config.projectInstructionsPath)) {
+function projectInstructionsPath(job = {}) {
+  const projectKey = job.project_key || job.project?.project_key || config.projectKey;
+  if (job.project?.instructions_path) return job.project.instructions_path;
+  if (job.instructions_path) return job.instructions_path;
+  if (config.projectInstructionsPath) return config.projectInstructionsPath;
+  if (projectKey === 'CharacterOS') {
+    return resolve(config.workerDir, 'project-instructions', 'CharacterOS.md');
+  }
+  return '';
+}
+
+export function projectInstructionsBlock(job = {}) {
+  const instructionsPath = projectInstructionsPath(job);
+  if (!instructionsPath) return '';
+  if (!existsSync(instructionsPath)) {
     return [
       '项目专用指令文件未找到。',
-      `配置路径：${config.projectInstructionsPath}`,
+      `配置路径：${instructionsPath}`,
       '如果任务依赖项目边界，请先修正 PROJECT_INSTRUCTIONS_PATH。',
     ].join('\n');
   }
 
-  return readFileSync(config.projectInstructionsPath, 'utf8').trim();
+  return readFileSync(instructionsPath, 'utf8').trim();
 }
 
 export function codexPlanPrompt(job) {
-  const projectInstructions = projectInstructionsBlock();
+  const projectInstructions = projectInstructionsBlock(job);
   return [
     '你是 HermesOS 的 Codex Planner。',
     '',
@@ -29,7 +42,7 @@ export function codexPlanPrompt(job) {
 }
 
 export function claudeExecutePrompt(job, plan) {
-  const projectInstructions = projectInstructionsBlock();
+  const projectInstructions = projectInstructionsBlock(job);
   return [
     '你是 HermesOS 的 Claude Executor。',
     '',
@@ -45,7 +58,7 @@ export function claudeExecutePrompt(job, plan) {
 }
 
 export function codexReviewPrompt(job) {
-  const projectInstructions = projectInstructionsBlock();
+  const projectInstructions = projectInstructionsBlock(job);
   return [
     '你是 HermesOS 的 Codex Reviewer。',
     '',

@@ -18,19 +18,29 @@ import {
   projectInstructionsBlock,
 } from './prompts.js';
 
-async function runCodex(prompt) {
+function projectContext(job = {}) {
+  const project = job.project || {};
+  return {
+    projectKey: job.project_key || project.project_key || config.projectKey,
+    projectDir: project.local_path || job.local_path || config.projectDir,
+    defaultBranch: project.default_branch || job.default_branch || config.defaultBranch,
+    devBranchPrefix: project.dev_branch_prefix || job.dev_branch_prefix || config.devBranchPrefix,
+  };
+}
+
+async function runCodex(prompt, context) {
   const result = await mustRun(
     config.codexCommand,
-    ['--ask-for-approval', 'never', '--sandbox', 'workspace-write', 'exec', '--cd', config.projectDir, prompt],
+    ['--ask-for-approval', 'never', '--sandbox', 'workspace-write', 'exec', '--cd', context.projectDir, prompt],
     {
-      cwd: config.projectDir,
+      cwd: context.projectDir,
       timeoutMs: config.commandTimeoutMs,
     },
   );
   return result.stdout.trim();
 }
 
-async function runClaude(prompt) {
+async function runClaude(prompt, context) {
   console.log('=== Claude Prompt ===');
   console.log(prompt);
   console.log('=== End Claude Prompt ===');
@@ -45,7 +55,7 @@ async function runClaude(prompt) {
       'Read,Edit,Write,Bash',
     ],
     {
-      cwd: config.projectDir,
+      cwd: context.projectDir,
       timeoutMs: config.commandTimeoutMs,
       stdin: `${prompt}\n`,
     },
@@ -79,14 +89,15 @@ async function fileExists(path) {
 }
 
 async function executeMockDevRun(job, branch) {
-  const readmePath = `${config.projectDir}\\README.md`;
+  const context = projectContext(job);
+  const readmePath = `${context.projectDir}\\README.md`;
   const line = 'HermesOS 初始化说明：本项目已接入 HermesOS 自动化开发流程。';
   const prefix = await fileExists(readmePath) ? '\n' : '# HermesOS\n\n';
 
   await appendFile(readmePath, `${prefix}${line}\n`, 'utf8');
 
-  const files = await changedFiles();
-  const stat = await diffStat();
+  const files = await changedFiles(context);
+  const stat = await diffStat(context);
 
   return {
     session_status: 'REVIEW_PENDING',
@@ -114,6 +125,7 @@ async function executeMockDevRun(job, branch) {
 }
 
 async function executeClaudeDevRun(job, branch) {
+  const context = projectContext(job);
   // 诊断日志：打印 job 结构以便排查数据传递问题
   console.log('=== Job Structure ===');
   console.log('job.id:', job.id);
@@ -124,7 +136,7 @@ async function executeClaudeDevRun(job, branch) {
   console.log('=== End Job Structure ===');
 
   const userGoal = job.session?.user_goal || job.input?.instruction || job.input?.summary || '';
-  const projectInstructions = projectInstructionsBlock();
+  const projectInstructions = projectInstructionsBlock(job);
 
   const prompt = [
     '你是 HermesOS 的 Claude Executor。',
@@ -142,9 +154,9 @@ async function executeClaudeDevRun(job, branch) {
     '最后简短输出：修改了哪些文件、实现了什么、有什么风险。',
   ].join('\n');
 
-  const claudeResult = await runClaude(prompt);
-  const files = await changedFiles();
-  const stat = await diffStat();
+  const claudeResult = await runClaude(prompt, context);
+  const files = await changedFiles(context);
+  const stat = await diffStat(context);
 
   return {
     session_status: 'REVIEW_PENDING',
@@ -165,9 +177,10 @@ async function executeClaudeDevRun(job, branch) {
   };
 }
 
-export async function executeSync() {
-  const branch = await currentBranch();
-  const short = await statusShort();
+export async function executeSync(job = {}) {
+  const context = projectContext(job);
+  const branch = await currentBranch(context);
+  const short = await statusShort(context);
 
   return {
     session_status: null,
@@ -182,8 +195,9 @@ export async function executeSync() {
 }
 
 export async function executeDevRun(job) {
-  const branch = await ensureDevBranch(job.session_id);
-  const before = await statusShort();
+  const context = projectContext(job);
+  const branch = await ensureDevBranch(job.session_id, context);
+  const before = await statusShort(context);
 
   // 只拦截已跟踪文件的修改/删除，untracked 文件（??）不阻塞
   const dirtyTracked = before
@@ -204,13 +218,13 @@ export async function executeDevRun(job) {
     return executeClaudeDevRun(job, branch);
   }
 
-  const plan = await runCodex(codexPlanPrompt(job));
+  const plan = await runCodex(codexPlanPrompt(job), context);
   const claudePrompt = claudeExecutePrompt(job, plan);
-  const claudeResult = await runClaude(claudePrompt);
-  const review = await runCodex(codexReviewPrompt(job));
+  const claudeResult = await runClaude(claudePrompt, context);
+  const review = await runCodex(codexReviewPrompt(job), context);
   const parsed = parseReview(review);
-  const files = await changedFiles();
-  const stat = await diffStat();
+  const files = await changedFiles(context);
+  const stat = await diffStat(context);
 
   return {
     session_status: 'REVIEW_PENDING',
@@ -238,11 +252,12 @@ export function executeDevFix(job) {
 }
 
 export async function executeReview(job) {
-  const branch = await currentBranch();
-  const review = await runCodex(codexReviewPrompt(job));
+  const context = projectContext(job);
+  const branch = await currentBranch(context);
+  const review = await runCodex(codexReviewPrompt(job), context);
   const parsed = parseReview(review);
-  const files = await changedFiles();
-  const stat = await diffStat();
+  const files = await changedFiles(context);
+  const stat = await diffStat(context);
 
   return {
     session_status: 'REVIEW_PENDING',
@@ -261,10 +276,11 @@ export async function executeReview(job) {
 }
 
 export async function executeApprove(job) {
-  const branch = await currentBranch();
-  assertDevBranch(branch);
+  const context = projectContext(job);
+  const branch = await currentBranch(context);
+  assertDevBranch(branch, context);
 
-  const short = await statusShort();
+  const short = await statusShort(context);
   if (!short) {
     return {
       session_status: 'DONE',
@@ -278,11 +294,11 @@ export async function executeApprove(job) {
     };
   }
 
-  await git(['add', '-A']);
+  await git(['add', '-A'], context);
   const title = job.session?.title || `Hermes session ${job.session_id}`;
-  await git(['commit', '-m', `Hermes session ${job.session_id}: ${title}`]);
-  await git(['push', 'origin', branch]);
-  const hash = (await git(['rev-parse', 'HEAD'])).stdout.trim();
+  await git(['commit', '-m', `Hermes session ${job.session_id}: ${title}`], context);
+  await git(['push', 'origin', branch], context);
+  const hash = (await git(['rev-parse', 'HEAD'], context)).stdout.trim();
 
   return {
     session_status: 'DONE',
@@ -297,11 +313,12 @@ export async function executeApprove(job) {
   };
 }
 
-export async function executeRollback() {
-  const branch = await currentBranch();
-  assertDevBranch(branch);
-  await git(['reset', '--hard']);
-  await git(['clean', '-fd']);
+export async function executeRollback(job = {}) {
+  const context = projectContext(job);
+  const branch = await currentBranch(context);
+  assertDevBranch(branch, context);
+  await git(['reset', '--hard'], context);
+  await git(['clean', '-fd'], context);
 
   return {
     session_status: 'ROLLED_BACK',

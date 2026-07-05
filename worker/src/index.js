@@ -50,6 +50,7 @@ async function handleJob(job) {
     const result = await executeJob(job);
     await reportJob({
       job_id: job.id,
+      project_key: job.project_key || job.project?.project_key || config.projectKey,
       session_id: job.session_id,
       job_type: job.job_type,
       status: 'SUCCESS',
@@ -60,6 +61,7 @@ async function handleJob(job) {
     console.error(`job ${job.id} failed:`, error.message);
     await reportJob({
       job_id: job.id,
+      project_key: job.project_key || job.project?.project_key || config.projectKey,
       session_id: job.session_id,
       job_type: job.job_type,
       status: 'FAILED',
