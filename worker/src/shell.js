@@ -10,12 +10,9 @@ export function run(command, args = [], options = {}) {
       cwd: options.cwd,
       shell: false,
       env: { ...process.env, ...(options.env || {}) },
+      stdio: options.stdin ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     };
-
-    if (options.stdin) {
-      spawnOptions.stdio = ['pipe', 'pipe', 'pipe'];
-    }
 
     const child = spawn(childCommand, childArgs, spawnOptions);
 
