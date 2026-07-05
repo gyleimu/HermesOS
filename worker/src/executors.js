@@ -178,8 +178,15 @@ export async function executeDevRun(job) {
   const branch = await ensureDevBranch(job.session_id);
   const before = await statusShort();
 
-  if (before) {
-    throw new Error(`Git is dirty before dev job:\n${before}`);
+  // 只拦截已跟踪文件的修改/删除，untracked 文件（??）不阻塞
+  const dirtyTracked = before
+    .split(/\r?\n/)
+    .filter((line) => line && !line.startsWith('??'))
+    .join('\n')
+    .trim();
+
+  if (dirtyTracked) {
+    throw new Error(`Git is dirty before dev job:\n${dirtyTracked}`);
   }
 
   if (config.aiExecutionMode === 'mock') {
