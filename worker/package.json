@@ -1,0 +1,13 @@
+{
+  "name": "hermesos-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/config.js && node --check src/api.js && node --check src/shell.js && node --check src/git.js && node --check src/prompts.js && node --check src/executors.js && node --check src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
