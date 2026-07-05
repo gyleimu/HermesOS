@@ -88,6 +88,42 @@ async function executeMockDevRun(job, branch) {
   };
 }
 
+async function executeClaudeDevRun(job, branch) {
+  const prompt = [
+    '你是 HermesOS 的 Claude Executor。',
+    '',
+    '请直接在当前仓库完成用户明确要求的修改。',
+    '不要提交 git，不要 push。',
+    '不要做无关重构。',
+    '',
+    `用户目标：${job.session?.user_goal || job.input?.instruction || job.input?.summary || ''}`,
+    '',
+    '完成后简短输出：修改了哪些文件、实现了什么、有什么风险。',
+  ].join('\n');
+
+  const claudeResult = await runClaude(prompt);
+  const files = await changedFiles();
+  const stat = await diffStat();
+
+  return {
+    session_status: 'REVIEW_PENDING',
+    project_status: 'REVIEW_PENDING',
+    git_state: files.length ? 'DIRTY' : 'CLEAN',
+    branch,
+    summary: files.length
+      ? 'Claude 已完成代码修改，等待用户审核。'
+      : 'Claude 执行完成，但没有产生文件改动。',
+    changed_files: files,
+    diff_stat: stat,
+    review_result: 'UNKNOWN',
+    risk_level: 'UNKNOWN',
+    artifacts: [
+      { artifact_type: 'CLAUDE_PROMPT', title: 'Claude Prompt', content: prompt },
+      { artifact_type: 'CLAUDE_RESULT', title: 'Claude Result', content: claudeResult },
+    ],
+  };
+}
+
 export async function executeSync() {
   const branch = await currentBranch();
   const short = await statusShort();
@@ -114,6 +150,10 @@ export async function executeDevRun(job) {
 
   if (config.aiExecutionMode === 'mock') {
     return executeMockDevRun(job, branch);
+  }
+
+  if (config.aiExecutionMode === 'claude') {
+    return executeClaudeDevRun(job, branch);
   }
 
   const plan = await runCodex(codexPlanPrompt(job));

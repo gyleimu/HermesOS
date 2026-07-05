@@ -26,7 +26,7 @@ export const config = {
   heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS || 10000),
   commandTimeoutMs: Number(process.env.COMMAND_TIMEOUT_MS || 180000),
   codexCommand: process.env.CODEX_COMMAND || 'codex',
-  claudeCommand: process.env.CLAUDE_COMMAND || 'claude',
+  claudeCommand: process.env.CLAUDE_COMMAND || (process.platform === 'win32' ? 'claude.cmd' : 'claude'),
   aiExecutionMode: process.env.AI_EXECUTION_MODE || 'mock',
   defaultBranch: process.env.DEFAULT_BRANCH || 'main',
   devBranchPrefix: process.env.DEV_BRANCH_PREFIX || 'hermes/dev-',
