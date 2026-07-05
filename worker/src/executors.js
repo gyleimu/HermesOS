@@ -26,10 +26,21 @@ async function runCodex(prompt) {
 }
 
 async function runClaude(prompt) {
-  const result = await mustRun(config.claudeCommand, ['-p', prompt], {
-    cwd: config.projectDir,
-    timeoutMs: config.commandTimeoutMs,
-  });
+  const result = await mustRun(
+    config.claudeCommand,
+    [
+      '--permission-mode',
+      'acceptEdits',
+      '--allowedTools',
+      'Read,Edit,Write',
+      '-p',
+      prompt,
+    ],
+    {
+      cwd: config.projectDir,
+      timeoutMs: config.commandTimeoutMs,
+    },
+  );
   return result.stdout.trim();
 }
 
