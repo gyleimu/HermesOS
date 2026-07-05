@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 
 export function run(command, args = [], options = {}) {
   return new Promise((resolve) => {
+    let settled = false;
     const child = spawn(command, args, {
       cwd: options.cwd,
       shell: false,
@@ -20,11 +21,30 @@ export function run(command, args = [], options = {}) {
       stderr += chunk.toString();
     });
 
+    const timeout = options.timeoutMs
+      ? setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          child.kill('SIGTERM');
+          resolve({
+            code: 124,
+            stdout,
+            stderr: `${stderr}\nCommand timed out after ${options.timeoutMs}ms`.trim(),
+          });
+        }, options.timeoutMs)
+      : null;
+
     child.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
       resolve({ code: 1, stdout, stderr: error.message });
     });
 
     child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
       resolve({ code, stdout, stderr });
     });
   });

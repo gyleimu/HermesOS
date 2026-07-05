@@ -1,3 +1,5 @@
+import { appendFile, access } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { config } from './config.js';
 import { mustRun } from './shell.js';
 import {
@@ -12,15 +14,21 @@ import {
 import { claudeExecutePrompt, codexPlanPrompt, codexReviewPrompt } from './prompts.js';
 
 async function runCodex(prompt) {
-  const result = await mustRun(config.codexCommand, ['exec', '--cd', config.projectDir, prompt], {
-    cwd: config.projectDir,
-  });
+  const result = await mustRun(
+    config.codexCommand,
+    ['--ask-for-approval', 'never', '--sandbox', 'workspace-write', 'exec', '--cd', config.projectDir, prompt],
+    {
+      cwd: config.projectDir,
+      timeoutMs: config.commandTimeoutMs,
+    },
+  );
   return result.stdout.trim();
 }
 
 async function runClaude(prompt) {
   const result = await mustRun(config.claudeCommand, ['-p', prompt], {
     cwd: config.projectDir,
+    timeoutMs: config.commandTimeoutMs,
   });
   return result.stdout.trim();
 }
@@ -33,6 +41,50 @@ function parseReview(reviewText) {
   return {
     review_result: pass ? 'PASS' : 'FAIL',
     risk_level: high ? 'HIGH' : medium ? 'MEDIUM' : 'LOW',
+  };
+}
+
+async function fileExists(path) {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function executeMockDevRun(job, branch) {
+  const readmePath = `${config.projectDir}\\README.md`;
+  const line = 'HermesOS 初始化说明：本项目已接入 HermesOS 自动化开发流程。';
+  const prefix = await fileExists(readmePath) ? '\n' : '# HermesOS\n\n';
+
+  await appendFile(readmePath, `${prefix}${line}\n`, 'utf8');
+
+  const files = await changedFiles();
+  const stat = await diffStat();
+
+  return {
+    session_status: 'REVIEW_PENDING',
+    project_status: 'REVIEW_PENDING',
+    git_state: files.length ? 'DIRTY' : 'CLEAN',
+    branch,
+    summary: '测试模式已完成 README 初始化说明写入，等待用户审核。',
+    changed_files: files,
+    diff_stat: stat,
+    review_result: 'PASS',
+    risk_level: 'LOW',
+    artifacts: [
+      {
+        artifact_type: 'PLAN',
+        title: 'Mock Plan',
+        content: `测试模式：根据用户目标写入 README。\n用户目标：${job.session?.user_goal || job.input?.instruction || ''}`,
+      },
+      {
+        artifact_type: 'REVIEW_REPORT',
+        title: 'Mock Review',
+        content: 'REVIEW_RESULT: PASS\nRISK: LOW\n测试模式已验证 DEV_RUN 链路。',
+      },
+    ],
   };
 }
 
@@ -58,6 +110,10 @@ export async function executeDevRun(job) {
 
   if (before) {
     throw new Error(`Git is dirty before dev job:\n${before}`);
+  }
+
+  if (config.aiExecutionMode === 'mock') {
+    return executeMockDevRun(job, branch);
   }
 
   const plan = await runCodex(codexPlanPrompt(job));
