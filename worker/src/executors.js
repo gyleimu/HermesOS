@@ -11,7 +11,12 @@ import {
   git,
   statusShort,
 } from './git.js';
-import { claudeExecutePrompt, codexPlanPrompt, codexReviewPrompt } from './prompts.js';
+import {
+  claudeExecutePrompt,
+  codexPlanPrompt,
+  codexReviewPrompt,
+  projectInstructionsBlock,
+} from './prompts.js';
 
 async function runCodex(prompt) {
   const result = await mustRun(
@@ -119,6 +124,7 @@ async function executeClaudeDevRun(job, branch) {
   console.log('=== End Job Structure ===');
 
   const userGoal = job.session?.user_goal || job.input?.instruction || job.input?.summary || '';
+  const projectInstructions = projectInstructionsBlock();
 
   const prompt = [
     '你是 HermesOS 的 Claude Executor。',
@@ -128,6 +134,7 @@ async function executeClaudeDevRun(job, branch) {
     '不要做无关重构。',
     '',
     `用户目标：${userGoal}`,
+    projectInstructions ? '\n项目专用指令：\n' + projectInstructions : '',
     '',
     '重要：请先用 Bash 工具运行 git status 和 dir/ls 了解当前仓库状态。',
     '如果用户目标提到某个文件（如 README.md），请先用 Read 工具查看该文件，再用 Edit 工具修改。',

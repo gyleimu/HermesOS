@@ -32,6 +32,7 @@ export const config = {
   codexCommand: process.env.CODEX_COMMAND || 'codex',
   claudeCommand: process.env.CLAUDE_COMMAND || (process.platform === 'win32' ? 'claude.cmd' : 'claude'),
   aiExecutionMode: process.env.AI_EXECUTION_MODE || 'mock',
+  projectInstructionsPath: process.env.PROJECT_INSTRUCTIONS_PATH,
   defaultBranch: process.env.DEFAULT_BRANCH || 'main',
   devBranchPrefix: process.env.DEV_BRANCH_PREFIX || 'hermes/dev-',
 };

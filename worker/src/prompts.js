@@ -1,9 +1,27 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { config } from './config.js';
+
+export function projectInstructionsBlock() {
+  if (!config.projectInstructionsPath) return '';
+  if (!existsSync(config.projectInstructionsPath)) {
+    return [
+      '项目专用指令文件未找到。',
+      `配置路径：${config.projectInstructionsPath}`,
+      '如果任务依赖项目边界，请先修正 PROJECT_INSTRUCTIONS_PATH。',
+    ].join('\n');
+  }
+
+  return readFileSync(config.projectInstructionsPath, 'utf8').trim();
+}
+
 export function codexPlanPrompt(job) {
+  const projectInstructions = projectInstructionsBlock();
   return [
     '你是 HermesOS 的 Codex Planner。',
     '',
     '这一步只规划，不修改文件。',
     `用户目标：${job.session?.user_goal || job.input?.instruction || job.input?.summary || ''}`,
+    projectInstructions ? '\n项目专用指令：\n' + projectInstructions : '',
     '',
     '请输出：任务理解、需要修改的文件、实施步骤、风险点、给 Claude CLI 的执行 Prompt。',
     '不要提交 git，不要 push，不要做无关重构。',
@@ -11,11 +29,13 @@ export function codexPlanPrompt(job) {
 }
 
 export function claudeExecutePrompt(job, plan) {
+  const projectInstructions = projectInstructionsBlock();
   return [
     '你是 HermesOS 的 Claude Executor。',
     '',
     '只允许完成用户明确要求的修改。不要提交 git，不要 push，不要做顺手优化。',
     `用户目标：${job.session?.user_goal || job.input?.instruction || job.input?.summary || ''}`,
+    projectInstructions ? '\n项目专用指令：\n' + projectInstructions : '',
     '',
     'Codex Plan：',
     plan,
@@ -25,11 +45,13 @@ export function claudeExecutePrompt(job, plan) {
 }
 
 export function codexReviewPrompt(job) {
+  const projectInstructions = projectInstructionsBlock();
   return [
     '你是 HermesOS 的 Codex Reviewer。',
     '',
     '请审查当前 git diff。只审查，不修改文件。',
     `用户目标：${job.session?.user_goal || job.input?.instruction || job.input?.summary || ''}`,
+    projectInstructions ? '\n项目专用指令：\n' + projectInstructions : '',
     '',
     '输出格式必须包含：',
     'REVIEW_RESULT: PASS 或 FAIL',
