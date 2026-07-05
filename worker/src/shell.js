@@ -3,9 +3,10 @@ import { spawn } from 'node:child_process';
 export function run(command, args = [], options = {}) {
   return new Promise((resolve) => {
     let settled = false;
+    const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
     const child = spawn(command, args, {
       cwd: options.cwd,
-      shell: false,
+      shell: needsShell,
       env: { ...process.env, ...(options.env || {}) },
       windowsHide: true,
     });
