@@ -25,8 +25,17 @@ export async function diffStat() {
 }
 
 export async function changedFiles() {
-  const result = await gitOptional(['diff', '--name-only']);
-  return result.stdout.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  // git diff --name-only 只覆盖已跟踪文件的修改，漏掉新文件（untracked）。
+  // 改用 git status --short 同时捕获 modified / added / untracked。
+  const result = await gitOptional(['status', '--short']);
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => {
+      // git status --short 格式: "XY filename"，其中 XY 是两个状态字符+空格
+      const m = line.match(/^..\s+(.+)$/);
+      return m ? m[1].trim() : '';
+    })
+    .filter(Boolean);
 }
 
 export async function ensureDevBranch(sessionId) {
