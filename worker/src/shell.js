@@ -6,12 +6,18 @@ export function run(command, args = [], options = {}) {
     const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
     const childCommand = needsShell ? 'cmd.exe' : command;
     const childArgs = needsShell ? ['/d', '/s', '/c', command, ...args] : args;
-    const child = spawn(childCommand, childArgs, {
+    const spawnOptions = {
       cwd: options.cwd,
       shell: false,
       env: { ...process.env, ...(options.env || {}) },
       windowsHide: true,
-    });
+    };
+
+    if (options.stdin) {
+      spawnOptions.stdio = ['pipe', 'pipe', 'pipe'];
+    }
+
+    const child = spawn(childCommand, childArgs, spawnOptions);
 
     let stdout = '';
     let stderr = '';
@@ -23,6 +29,11 @@ export function run(command, args = [], options = {}) {
     child.stderr?.on('data', (chunk) => {
       stderr += chunk.toString();
     });
+
+    if (options.stdin) {
+      child.stdin.write(options.stdin);
+      child.stdin.end();
+    }
 
     const timeout = options.timeoutMs
       ? setTimeout(() => {

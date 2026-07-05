@@ -26,21 +26,30 @@ async function runCodex(prompt) {
 }
 
 async function runClaude(prompt) {
+  console.log('=== Claude Prompt ===');
+  console.log(prompt);
+  console.log('=== End Claude Prompt ===');
+
   const result = await mustRun(
     config.claudeCommand,
     [
+      '--print',
       '--permission-mode',
       'acceptEdits',
       '--allowedTools',
-      'Read,Edit,Write',
-      '-p',
-      prompt,
+      'Read,Edit,Write,Bash',
     ],
     {
       cwd: config.projectDir,
       timeoutMs: config.commandTimeoutMs,
+      stdin: `${prompt}\n`,
     },
   );
+
+  console.log('=== Claude Result ===');
+  console.log(result.stdout);
+  console.log('=== End Claude Result ===');
+
   return result.stdout.trim();
 }
 
@@ -100,6 +109,17 @@ async function executeMockDevRun(job, branch) {
 }
 
 async function executeClaudeDevRun(job, branch) {
+  // 诊断日志：打印 job 结构以便排查数据传递问题
+  console.log('=== Job Structure ===');
+  console.log('job.id:', job.id);
+  console.log('job.job_type:', job.job_type);
+  console.log('job.session_id:', job.session_id);
+  console.log('job.session:', JSON.stringify(job.session, null, 2));
+  console.log('job.input:', JSON.stringify(job.input, null, 2));
+  console.log('=== End Job Structure ===');
+
+  const userGoal = job.session?.user_goal || job.input?.instruction || job.input?.summary || '';
+
   const prompt = [
     '你是 HermesOS 的 Claude Executor。',
     '',
@@ -107,9 +127,12 @@ async function executeClaudeDevRun(job, branch) {
     '不要提交 git，不要 push。',
     '不要做无关重构。',
     '',
-    `用户目标：${job.session?.user_goal || job.input?.instruction || job.input?.summary || ''}`,
+    `用户目标：${userGoal}`,
     '',
-    '完成后简短输出：修改了哪些文件、实现了什么、有什么风险。',
+    '重要：请先用 Bash 工具运行 git status 和 dir/ls 了解当前仓库状态。',
+    '如果用户目标提到某个文件（如 README.md），请先用 Read 工具查看该文件，再用 Edit 工具修改。',
+    '完成后请用 Bash 运行 git diff --stat 确认改动。',
+    '最后简短输出：修改了哪些文件、实现了什么、有什么风险。',
   ].join('\n');
 
   const claudeResult = await runClaude(prompt);
