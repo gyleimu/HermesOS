@@ -4,9 +4,11 @@ export function run(command, args = [], options = {}) {
   return new Promise((resolve) => {
     let settled = false;
     const needsShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
-    const child = spawn(command, args, {
+    const childCommand = needsShell ? 'cmd.exe' : command;
+    const childArgs = needsShell ? ['/d', '/s', '/c', command, ...args] : args;
+    const child = spawn(childCommand, childArgs, {
       cwd: options.cwd,
-      shell: needsShell,
+      shell: false,
       env: { ...process.env, ...(options.env || {}) },
       windowsHide: true,
     });
